@@ -12,4 +12,4 @@ This is a package that provides 1-D cubic splines, with a particular eye to usin
 
 ## Installation
 
-Installation should be just as for any unregister julia package
+Installation should be just as for any unregistered julia package
