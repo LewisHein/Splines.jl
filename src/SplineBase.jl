@@ -154,9 +154,7 @@ function call{T}(f::Spline{T}, g::Spline{T})
   f_warped = deepcopy(f)
 
   #insert the new knots into f_warped in preparation for moving them to complete the warping
-  for i in eachindex(newknots)
-    insert!(f_warped, newknots[i], newvalues[i])
-  end
+  insert!(f_warped, newknots, newvalues)
 
   return f_warped
 end
