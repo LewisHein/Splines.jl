@@ -432,5 +432,6 @@ export maxabs2deriv
 export Spline
 export derivative
 export discretize
+export uniform_discretize
 export indomain
 export domain
