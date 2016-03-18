@@ -146,22 +146,19 @@ function call{T}(f::Spline{T}, g::Spline{T})
     throw(DomainError())
   end
 
-  if domain(g) != domain(f)
-    throw(DomainError())
-  end
-
-  # Insert the knots from f into g so that it can warp effectively
-  for knot in f.knots
-    insert!(g, knot, g(knot))
-  end
-
   # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
   g_discrete = adaptive_discretize(g)
 
   newknots = g_discrete[:x]
   newvalues = [f(x) for x in g_discrete[:y]]
+  f_warped = deepcopy(f)
 
-  return Spline{T}(newknots, newvalues)
+  #insert the new knots into f_warped in preparation for moving them to complete the warping
+  for i in eachindex(newknots)
+    insert!(f_warped, newknots[i], newvalues[i])
+  end
+
+  return f_warped
 end
 
 """Add a knot to a spline"""
