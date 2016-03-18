@@ -139,6 +139,31 @@ function call{T}(s::Spline{T}, x::T)
 	return @evalpoly(h, s.a[bracket], s.b[bracket], s.c[bracket], s.d[bracket])::T
 end
 
+"""calling a spline _f_ with another spline _g_ as argument produces a spline approximation to f(g)"""
+function call{T}(f::Spline{T}, g::Spline{T})
+  gmax, gmin = extrema(g)
+  if !indomain(f, gmax) || !indomain(f, gmin)
+    throw(DomainError())
+  end
+
+  if domain(g) != domain(f)
+    throw(DomainError())
+  end
+
+  # Insert the knots from f into g so that it can warp effectively
+  for knot in f.knots
+    insert!(g, knot, g(knot))
+  end
+
+  # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
+  g_discrete = adaptive_discretize(g)
+
+  newknots = g_discrete[:x]
+  newvalues = [f(x) for x in g_discrete[:y]]
+
+  return Spline{T}(newknots, newvalues)
+end
+
 """Add a knot to a spline"""
 function insert!{T}(s::Spline{T}, knot::T, value::T)
 	knots = s.knots
@@ -615,4 +640,3 @@ export uniform_discretize
 export adaptive_discretize
 export indomain
 export domain
-
