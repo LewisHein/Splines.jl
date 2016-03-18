@@ -13,10 +13,10 @@ type Spline{T<:Number}
 
     function Spline(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
 	nKnots = length(knots)
-    	if nKnots <= 1 
+    	if nKnots <= 1
 		throw(ArgumentError("There must be at least two knots"))
 	end
-	
+
 	if length(values) != nKnots
 		throw(ArgumentError("Values is of wrong size"))
 	end
@@ -29,7 +29,7 @@ type Spline{T<:Number}
 		throw(ArgumentError("Values cannot be NaN"))
 	end
 
-        if !issorted(knots) 
+        if !issorted(knots)
 		throw(ArgumentError("Knots must be sorted"))
 	end
 
@@ -69,8 +69,8 @@ end
 function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	nKnots = length(s.knots)
 	nvalues = length(values)
-	
-	if nvalues != nKnots 
+
+	if nvalues != nKnots
 		throw(ArgumentError("Values is of wrong size"))
 	end
 
@@ -123,7 +123,7 @@ function call{T}(s::Spline{T}, x::T)
 		throw(DomainError())
 		#error("x out of range")
 	end
-	
+
 	bracket = 0
 	for i in size(s.knots, 1)-1:-1:1
 		if x >= s.knots[i]
@@ -164,7 +164,7 @@ function deleteknotat!{T}(s::Spline{T}, knotIndex::Integer...)
 	for (i, x) in enumerate(knots)
 		values[i] = s(x)
 	end
-	
+
 	deleteat!(knots, knotIndex)
 	deleteat!(values, knotIndex)
 
@@ -194,7 +194,7 @@ function trimend!{T}(s::Spline{T}, cutoff::T)
 	newknot = cutoff
 	newvalue = s(newknot)
 	insert!(s, newknot, newvalue)
-	
+
 	indeciesToTrim = find(x->x > newknot, s.knots)
 	deleteknotat!(s, indeciesToTrim...)
 end
@@ -218,12 +218,12 @@ function maxcubic(h, a, b, c, d) #a+bx+cx^2+dx^3
 
 	root1 = (-2*c-sqrt(discriminant))/(6*d)
 	root2 = (-2*c+sqrt(discriminant))/(6*d)
-	
+
 	val1 = @evalpoly(0, a, b, c, d)
 	val2 = @evalpoly(root1, a, b, c, d)
 	val3 = @evalpoly(root2, a, b, c, d)
 	val4 = @evalpoly(h, a, b, c, d)
-	
+
 	if root1 < 0 || root1 >h
 		val2 = -Inf
 	end
@@ -294,7 +294,7 @@ end
 
 function maximum{T}(s::Spline{T})
 	maxS = -Inf
-	
+
 	for i in 1:length(s.knots)-1
 		maxS = max(maxS, maxcubic(s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i])[1])
 	end
@@ -304,7 +304,7 @@ end
 
 function minimum{T}(s::Spline{T})
 	minS = Inf
-	
+
 	for i in 1:length(s.knots)-1
 		minS = min(minS, mincubic(s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i])[1])
 	end
@@ -315,7 +315,7 @@ end
 function extrema{T}(s::Spline{T})
 	minS = Inf
 	maxS = -Inf
-	
+
 	for i in 1:length(s.knots)-1
 		minS = min(minS, mincubic(s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i]))
 		maxS = max(maxS, maxcubic(s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i]))
@@ -337,7 +337,7 @@ function xmax{T}(s::Spline{T})
 			break
 		end
 	end
-	
+
 	return maxPos
 end
 
@@ -359,7 +359,7 @@ end
 
 
 function derivative{T}(s::Spline{T})
-	nSplines = size(s.a, 1) 
+	nSplines = size(s.a, 1)
 
 	sDeriv = s
 	for i in 1:nSplines
@@ -384,15 +384,15 @@ function find_stepsize{T}(s::Spline{T}, tol::Number)
 	else
 		stepSize = (s.knots[end]-s.knots[1])/minValues
 	end
-	
+
 	return stepSize
 end
 
 """
 Create an evenly spaced mesh of points to discretize the spline so that the maximum absolute error due to linear interpolation is <= tol.
-If this is too small, return a mesh with 100 points
+If this is too small, return a mesh with 100 points. Note, this may use horrendous amounts of memory. Consider using adaptive_discretize_mesh instead
 """
-function discretize_mesh{T}(s::Spline{T}, tol::Number=-1)
+function uniform_discretize_mesh{T}(s::Spline{T}, tol::Number=-1)
 	stepSize = find_stepsize(s, tol)
 	mesh = s.knots[1]:stepSize:s.knots[end]
 	return mesh
@@ -402,7 +402,7 @@ end
 """Turn a spline object into a discrete list of values on an automatically created uniform mesh"""
 function discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
 	mesh = discretize_mesh(s, tol)
-	
+
 	return discretize(s, mesh)
 end
 
@@ -434,4 +434,3 @@ export derivative
 export discretize
 export indomain
 export domain
-
