@@ -245,11 +245,54 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   s.knots = s.knots[perm]
   newvalues = newvalues[perm]
 
-  println(s.knots, newvalues)
-
   recalculate!(s, newvalues)
   return nothing
 end
+
+"""Move the knot at knotIndex to the location newlocation"""
+function moveknot!{T}(s::Spline{T}, knotIndex::Int, newlocation::T)
+  if knotIndex > length(s.knots) || knotIndex <1
+    throw(BoundsError(s, knotIndex))
+  end
+
+  if !indomain(s, newlocation)
+    throw(DomainError())
+  end
+
+  if newlocation in s.knots
+    throw(ArgumentError("newlocation cannot be a pre-existing knot"))
+  end
+
+  s.knots[knotIndex] = newlocation
+
+  recalculate!(s, s.values)
+end
+
+"""Move the knots at _knotIndecies_ to the new locations in _newlocations_"""
+function moveknot!{T}(s::Spline{T}, knotIndecies::AbstractArray{Int, 1}, newlocations::AbstractArray{T, 1})
+  if length(knotIndecies) != length(newlocations)
+    throw(ArgumentError("knotIndecies and newlocations must have the same length, not $(length(knotIndecies)) and $(length(newlocations))"))
+  end
+
+  for index in knotIndecies
+    if index > length(s.knots) || index < 1
+      throw(BoundsError(s, index))
+    end
+  end
+
+  for newloc in newlocations
+    if !indomain(s, newloc)
+      throw(DomainError)
+    end
+  end
+
+  for (i, index) in enumerate(knotIndecies)
+    s.knots[index] = newlocations[i]
+  end
+
+  recalculate!(s, s.values)
+end
+
 
 """Delete a knot or knots from a spline"""
 function deleteknotat!{T}(s::Spline{T}, knotIndex::Integer...)
@@ -689,6 +732,7 @@ end
 
 export call
 export insert!
+export moveknot!
 export deleteknotat!
 export trimstart!
 export trimend!
