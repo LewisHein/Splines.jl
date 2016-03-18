@@ -111,7 +111,7 @@ end
 newvalues = [rand() for i in newknots]
 insert!(s, copy(newknots), copy(newvalues))
 for (i, knot) in enumerate(newknots)
-#	@test_approx_eq s(knot) newvalues[i]
+	@test_approx_eq s(knot) newvalues[i]
 end
 
 #test that the new knots were properly added
