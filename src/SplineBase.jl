@@ -1,4 +1,7 @@
 import Base: extrema
+
+min_knot_dist_factor = 10000 #knots must be separated by at leas 10000*eps(T) to be considered unique.
+
 function forwardDifference{T<:Number}(x::AbstractArray{T, 1})
     length = size(x, 1)
     return [x[i]-x[i-1] for i in 2:length]
@@ -14,14 +17,14 @@ type Spline{T<:Number}
 
 
     function Spline(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
-	nKnots = length(knots)
+	    nKnots = length(knots)
     	if nKnots <= 1
-		throw(ArgumentError("There must be at least two knots"))
-	end
+		      throw(ArgumentError("There must be at least two knots"))
+	    end
 
-	if length(values) != nKnots
-		throw(ArgumentError("Values is of wrong size"))
-	end
+      if length(values) != nKnots
+		    throw(ArgumentError("Values is of wrong size"))
+	    end
 
 	if any(isnan(knots))
 		throw(ArgumentError("Knots cannot be NaN"))
@@ -35,11 +38,22 @@ type Spline{T<:Number}
 		throw(ArgumentError("Knots must be sorted"))
 	end
 
+  todelete = Array{Int, 1}(0)
 	for knot in 2:nKnots
 		if knots[knot] == knots[knot-1]
 			throw(ArgumentError("Knots must all be unique"))
 		end
+    if knots[knot]-knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two knots & values by their averages
+      knots[knot] = (knots[knot]+knots[knot-1])/2
+      values[knot] = (values[knot]+values[knot-1])/2
+      push!(todelete, knot)
+    end
 	end
+  for i in todelete
+    deleteat!(knots, i)
+    deleteat!(values, i)
+  end
+  nKnots = length(knots)
 
 	a = values
 	h = forwardDifference(knots)
@@ -79,6 +93,23 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	if any(isnan(values))
 		throw(ArgumentError("values cannot contain NaN"))
 	end
+
+  todelete = Array{Int, 1}(0)
+	for knot in 2:nKnots
+		if s.knots[knot] == s.knots[knot-1]
+			throw(ArgumentError("s.knots must all be unique"))
+		end
+    if s.knots[knot]-s.knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
+      s.knots[knot] = (s.knots[knot]+s.knots[knot-1])/2
+      values[knot] = (values[knot]+values[knot-1])/2
+      push!(todelete, knot)
+    end
+	end
+  for i in todelete
+    deleteat!(s.knots, i)
+    deleteat!(values, i)
+  end
+  nKnots = length(s.knots)
 
 	a = values
 	h = forwardDifference(s.knots)
@@ -213,6 +244,8 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   perm = sortperm(s.knots)
   s.knots = s.knots[perm]
   newvalues = newvalues[perm]
+
+  println(s.knots, newvalues)
 
   recalculate!(s, newvalues)
   return nothing
