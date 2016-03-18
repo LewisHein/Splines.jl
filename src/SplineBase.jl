@@ -400,8 +400,8 @@ end
 
 
 """Turn a spline object into a discrete list of values on an automatically created uniform mesh"""
-function discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
-	mesh = discretize_mesh(s, tol)
+function uniform_discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
+	mesh = uniform_discretize_mesh(s, tol)
 
 	return discretize(s, mesh)
 end
