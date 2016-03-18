@@ -83,6 +83,7 @@ end
 
 """Recalculate a spline with new values, assuming that the corresponding knots are already in s.knots"""
 function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
+  @assert issorted(s.knots) "Knots are not sorted. This is probably a bug in the Splines library"
 	nKnots = length(s.knots)
 	nvalues = length(values)
 
@@ -186,7 +187,7 @@ function call{T}(f::Spline{T}, g::Spline{T})
   f_warped = deepcopy(f)
 
   #insert the new knots into f_warped in preparation for moving them to complete the warping
-  insert!(f_warped, newknots, newvalues)
+  insert!(f_warped, g_discrete[:y], newvalues)
 
   return f_warped
 end
@@ -217,6 +218,9 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   if length(knots) != length(values)
     throw(ArgumentError("knots and values must be the same size"))
   end
+  if unique(knots) != knots
+    throw(ArgumentError("knots must all be unique"))
+  end
 
   newvalues = copy(s.values)
 
@@ -225,8 +229,9 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   todelete = Array{Int, 1}(0)
   for (i, knot) in enumerate(knots)
     if knot in s.knots
-      newvalues[findin(s.knots, knot)[1]] = values[i]
-      push!(todelete, i)
+      duplicate_pos = findin(s.knots, knot)[1]
+      newvalues[duplicate_pos] = values[i] #change the value
+      push!(todelete, i) #and add the index to a list of indecies to delete
     end
   end
   #delete whatever was in the list
@@ -235,7 +240,6 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
     deleteat!(knots, i)
     deleteat!(values, i)
   end
-
 
   append!(s.knots, knots)
   append!(newvalues, values)
