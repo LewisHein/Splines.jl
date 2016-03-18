@@ -1,9 +1,6 @@
-import Base: extrema
-include("cubic_helpers.jl")
-
-function forwardDifference{T}(x::AbstractArray{T, 1})
+function forwardDifference{T<:Number}(x::AbstractArray{T, 1})
     length = size(x, 1)
-    return [(x[i]-x[i-1])::T for i in 2:length]::Array{T, 1}
+    return [x[i]-x[i-1] for i in 2:length]
 end
 
 type Spline{T<:Number}
@@ -34,7 +31,6 @@ type Spline{T<:Number}
 	end
 
         if !issorted(knots)
-          warn("$knots")
 		throw(ArgumentError("Knots must be sorted"))
 	end
 
@@ -44,34 +40,29 @@ type Spline{T<:Number}
 		end
 	end
 
-	a = copy(values)
-	resize!(a, nKnots-1)
+	a = values
 	h = forwardDifference(knots)
 	df = forwardDifference(values) ./ h
-# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical because it will become s.c
-	c = 3*forwardDifference(df)
-	insert!(c, 1, 0)
-	push!(c, 0)
+# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+	c = Array{Float64, 1}([0])
+	append!(c, 3*forwardDifference(df))
+	append!(c, [0])
 
-	lowerDiag::Array{Float64, 1} = copy(h)
-	lowerDiag[end] = zero(T)
+	lowerDiag::Array{Float64, 1} = h[1:nKnots-2]
+	append!(lowerDiag, [0.0]);
 
-	diag = Array{Float64, 1}(nKnots)
-	diag[1] = one(T)
-	for i in 2:nKnots-1
-		diag[i] = 2*(h[i]+h[i-1])
-	end
-	diag[end] = one(T)
+	diag = Array{Float64}([1])
+	append!(diag, [2*(h[i]+h[i-1]) for i in 2:nKnots-1])
+	append!(diag, [1.0])
 
-	upperDiag = copy(h)
-	upperDiag[1] = 0
+	upperDiag = Array{Float64, 1}([0.0])
+	append!(upperDiag, h[2:nKnots-1])
 
 	#LAPACK.gtsv!([h[1:nKnots-2]; 0], [1; [2*(h[i]+h[i-1]) for i in 2:nKnots-1]; 1], [0; h[2:nKnots-1]], c;)
 	LAPACK.gtsv!(lowerDiag, diag, upperDiag, c)
 	d = [(c[i+1]-c[i])/(3*h[i]) for i in 1:nKnots-1]
 	b = [df[i]-((h[i]/3)*((2*c[i])+c[i+1])) for i in 1:nKnots-1]
-	resize!(c, nKnots-1)
-	new(knots, values, a, b, c, d)
+	new(knots, values, a[1:nKnots-1], b, c[1:nKnots-1], d)
     end
 end
 
@@ -92,29 +83,25 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	h = forwardDifference(s.knots)
 	df = forwardDifference(values) ./ h
 # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
-	c = 3*forwardDifference(df)
-	insert!(c, 1, 0)
-	push!(c, 0)
+	c = Array{Float64, 1}([0])
+	append!(c, 3*forwardDifference(df))
+	append!(c, [0])
 
-	lowerDiag::Array{Float64, 1} = copy(h)
-	lowerDiag[end] = zero(T)
+	lowerDiag::Array{Float64, 1} = h[1:nKnots-2]
+	append!(lowerDiag, [0.0]);
 
-	diag = Array{Float64, 1}(nKnots)
-	diag[1] = one(T)
-	for i in 2:nKnots-1
-		diag[i] = 2*(h[i]+h[i-1])
-	end
-	diag[end] = one(T)
+	diag = Array{Float64}([1])
+	append!(diag, [2*(h[i]+h[i-1]) for i in 2:nKnots-1])
+	append!(diag, [1.0])
 
-	upperDiag = copy(h)
-	upperDiag[1] = 0
+	upperDiag = Array{Float64, 1}([0.0])
+	append!(upperDiag, h[2:nKnots-1])
 
 	#LAPACK.gtsv!([h[1:nKnots-2]; 0], [1; [2*(h[i]+h[i-1]) for i in 2:nKnots-1]; 1], [0; h[2:nKnots-1]], c;)
 	LAPACK.gtsv!(lowerDiag, diag, upperDiag, c)
 	d = [(c[i+1]-c[i])/(3*h[i]) for i in 1:nKnots-1]
 	b = [df[i]-((h[i]/3)*((2*c[i])+c[i+1])) for i in 1:nKnots-1]
-	s.a = copy(values)
-	resize!(s.a, length(values)-1)
+	s.a = a[1:nKnots-1]
 	s.b = b
 	s.c = c[1:nKnots-1]
 	s.d = d
@@ -135,7 +122,6 @@ Spline{T<:Number}(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1}) = Spl
 
 function call{T}(s::Spline{T}, x::T)
 	if !indomain(s, x)
-    warn("$x")
 		throw(DomainError())
 		#error("x out of range")
 	end
@@ -153,46 +139,22 @@ function call{T}(s::Spline{T}, x::T)
 	return @evalpoly(h, s.a[bracket], s.b[bracket], s.c[bracket], s.d[bracket])::T
 end
 
-"""calling a spline _f_ with another spline _g_ as argument produces a spline approximation to f(g)"""
-function call{T}(f::Spline{T}, g::Spline{T})
-  gmax, gmin = extrema(g)
-  if !indomain(f, gmax) || !indomain(f, gmin)
-    throw(DomainError())
-  end
-
-  if domain(g) != domain(f)
-    throw(DomainError())
-  end
-
-  # Insert the knots from f into g so that it can warp effectively
-  for knot in f.knots
-    insert!(g, knot, g(knot))
-  end
-
-  # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
-  g_discrete = adaptive_discretize(g)
-
-  newknots = g_discrete[:x]
-  newvalues = [f(x) for x in g_discrete[:y]]
-
-  return Spline{T}(newknots, newvalues)
-end
-
-
-
 """Add a knot to a spline"""
 function insert!{T}(s::Spline{T}, knot::T, value::T)
 	knots = s.knots
-	values = copy(s.values)
+	values = [s(i)::T for i in knots] #FIXME: why allocate a whole new array? all but one of the values are already stored in s.a
 	if knot in knots
 		values[findin(knots, knot)[1]] == value
 		recalculate!(s, values)
 		return nothing
 	end
 
-	index = findlast(x->x>knot, knots)
-	insert!(knots, index-1, knot)
-	insert!(values, index-1, value)
+	push!(knots, knot)
+	push!(values, value)
+
+	perm = sortperm(knots)
+	s.knots = knots[perm]
+	values = values[perm]
 
 	recalculate!(s, values)
 	return nothing
@@ -248,9 +210,162 @@ function trim!{T}(s::Spline{T}, startx::T, endx::T)
 	deleteknotat!(s, indeciesToTrim...)
 end
 
+#FIXME: NaN if d = 0
+function maxabscubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
+  @assert !isnan(x0)
+  @assert !isnan(x1)
+  @assert !isnan(a)
+  @assert !isnan(b)
+  @assert !isnan(c)
+  @assert !isnan(d)
+  #print("x0, x1, a, b, c, d: ", x0, a, b, c, d)
+  #print("\n")
+  if x0 == x1 #then there is no real max, but we do the sanest possible thing
+    return (x0, @evalpoly(x0, a, b, c, d))
+  end
+  if d == 0 #then the max is at an endpoint.
+    endpt1_val = @evalpoly(x0, a, b, c, d)
+    endpt2_val = @evalpoly(x1, a, b, c, d)
+    return endpt2_val > endpt1_val ? (endpt2_val, x1) : (endpt1_val, x0)
+  end
+
+	#otherwise, we use the quadratic formula on the derivative
+	discriminant = (c)^2-(3d*b)
+	if discriminant >= 0 #then the max may be  in [x0, x1]
+		root1 = (-sqrt(discriminant)-c)/(3*d)
+		root2 = (sqrt(discriminant)-c)/(3*d)
+	end
+
+
+	val1 = abs(@evalpoly(x0, a, b, c, d)::T)
+	if discriminant >= 0
+		val2 = abs(@evalpoly(root1, a, b, c, d)::T)
+		val3 = abs(@evalpoly(root2, a, b, c, d)::T)
+	else
+		val2 = typemin(T)
+		val3 = typemin(T)
+	end
+	val4 = abs(@evalpoly(x1, a, b, c, d)::T)
+
+	if discriminant >= 0
+		if root1 < x0 || root1 >x1
+			val2 = typemin(T)
+		end
+		if root2 < x0 || root2 > x1
+			val3 = typemin(T)
+		end
+	end
+
+	theMax = max(val1, val2, val3, val4)
+
+#	println(val1, val2, val3, val4, theMax)
+	maxPos = typemin(T)
+	if val1 == theMax
+		maxPos = x0
+	elseif val2 == theMax
+		maxPos = root1
+	elseif val3 == theMax
+		maxPos = root2
+	elseif val4 == theMax
+		maxPos = x1
+#=	else
+    println("Failed to find the max in maxabscubic. This is probably a bug in Splines.jl")
+		return nothing=#
+	end
+
+	return (theMax, convert(T, maxPos))
+end
+
+function maxabscubic{T}(x::T, a::T, b::T, c::T, d::T) #search on [0, x]
+	return maxcubic(zero(T), x, a, b, c, d)
+end
+
+#FIXME: NaN if d = 0
+function maxcubic(h, a, b, c, d) #a+bx+cx^2+dx^3
+	#We use the quadratic formula on the derivative
+	discriminant = (2c)^2-4*(3d*b)
+	if discriminant < 0
+		return -Inf
+	end
+
+	root1 = (-2*c-sqrt(discriminant))/(6*d)
+	root2 = (-2*c+sqrt(discriminant))/(6*d)
+
+	val1 = @evalpoly(0, a, b, c, d)
+	val2 = @evalpoly(root1, a, b, c, d)
+	val3 = @evalpoly(root2, a, b, c, d)
+	val4 = @evalpoly(h, a, b, c, d)
+
+	if root1 < 0 || root1 >h
+		val2 = -Inf
+	end
+	if root2 < 0 || root2 > h
+		val3 = -Inf
+	end
+
+	theMax = max(val1, val2, val3, val4)
+
+	maxPos = -Inf
+	if val1 == theMax
+		maxPos = 0
+	elseif val2 == theMax
+		maxPos = root1
+	elseif val3 == theMax
+		maxPos = root2
+	elseif val4 == theMax
+		maxPos = h
+	else
+		error("Failed to find the max in maxcubic. This is probably a bug in Splines.jl")
+	end
+
+	return (theMax, maxPos)
+end
+
+
+function mincubic(h, a, b, c, d) #a+bx+cx^2+dx^3
+	#We use the quadratic formula on the derivative
+	discriminant = (2*c)^2-4*(3*d*b)
+	if discriminant < 0
+		return Inf
+	end
+
+	root1 = (-2*c-sqrt(discriminant))/(6*d)
+	root2 = (-2*c+sqrt(discriminant))/(6*d)
+
+	val1 = @evalpoly(0, a, b, c, d)
+	val2 = @evalpoly(root1, a, b, c, d)
+	val3 = @evalpoly(root2, a, b, c, d)
+	val4 = @evalpoly(h, a, b, c, d)
+
+	if root1 < 0 || root1 > h
+		val2 = Inf
+	end
+
+	if root2 < 0 || root2 > h
+		val3 = Inf
+	end
+
+	theMin = min(val1, val2, val3, val4)
+
+	minPos = Inf
+	if val1 == theMin
+		minPos = 0
+	elseif val2 == theMin
+		minPos = root1
+	elseif val3 == theMin
+		minPos = root2
+	elseif val4 == theMin
+		minPos = h
+	else
+		error("Failed to find the minium. This is probably a bug in Splines.jl")
+	end
+
+	return (theMin, minPos)
+end
+
 
 function maximum{T}(s::Spline{T})
-	maxS = typemin(T)
+	maxS = -Inf
 
 	for i in 1:length(s.knots)-1
 		maxS = max(maxS, maxcubic(s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i])[1])
@@ -353,6 +468,24 @@ function uniform_discretize_mesh{T}(s::Spline{T}, tol::Number=-1)
 	stepSize = find_stepsize(s, tol)
 	mesh = s.knots[1]:stepSize:s.knots[end]
 	return mesh
+end
+
+
+"""Turn a spline object into a discrete list of values on an automatically created uniform mesh"""
+function uniform_discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
+	mesh = uniform_discretize_mesh(s, tol)
+
+	return discretize(s, mesh)
+end
+
+"""Turn a spline object into a discrete list of values at the mesh points given by _mesh_"""
+function discretize{T}(s::Spline{T}, mesh::AbstractArray{T})
+	discretized = Array{T, 1}(length(mesh))
+	for (i, x) in enumerate(mesh)
+		discretized[i] = s(x)
+	end
+
+	return discretized
 end
 
 """A helper function to find the maximum absolute error due to linear interpolation of
@@ -463,26 +596,6 @@ function adaptive_discretize{T}(s::Spline{T}, tol::Number=-.01)
 end
 
 
-"""Turn a spline object into a discrete list of values on an automatically created uniform mesh"""
-function uniform_discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
-	mesh = uniform_discretize_mesh(s, tol)
-
-	return discretize(s, mesh)
-end
-
-"""Turn a spline object into a discrete list of values at the mesh points given by _mesh_"""
-function discretize{T}(s::Spline{T}, mesh::AbstractArray{T})
-	discretized = Array{T, 1}(length(mesh))
-	for (i, x) in enumerate(mesh)
-		discretized[i] = s(x)
-	end
-
-	return discretized
-end
-
-
-
-
 export call
 export insert!
 export deleteknotat!
@@ -497,7 +610,9 @@ export maxabs
 export maxabs2deriv
 export Spline
 export derivative
-export adaptive_discretize
+export discretize
 export uniform_discretize
+export adaptive_discretize
 export indomain
 export domain
+
