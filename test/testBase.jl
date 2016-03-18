@@ -100,8 +100,14 @@ values_someothersize = [rand() for i in 11:20]
 oldknots = copy(s.knots)
 oldvalues = copy(s.values)
 newknots = [Float64(rand(domain(s)[1]:rand():domain(s)[2])) for i in 1:rand(1:10)]
+
+#now ensure that some knots are duplicated to make sure this is handled correctly
+for i in 1:rand(2:len)
+	insert!(newknots, rand(1:length(newknots)), oldknots[rand(1:len)])
+end
+
 newvalues = [rand() for i in newknots]
-insert!(s, newknots, newvalues)
+insert!(s, copy(newknots), copy(newvalues))
 for (i, knot) in enumerate(newknots)
 	@test_approx_eq s(knot) newvalues[i]
 end
@@ -111,7 +117,9 @@ end
 
 #test that the previous values are unchanged
 for (i, knot) in enumerate(oldknots)
-	@test_approx_eq s(knot) oldvalues[i]
+	if !(knot in newknots)
+		@test_approx_eq s(knot) oldvalues[i]
+	end
 end
 
 ##### End insert! tests

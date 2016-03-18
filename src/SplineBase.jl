@@ -185,14 +185,25 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   if length(knots) != length(values)
     throw(ArgumentError("knots and values must be the same size"))
   end
-  
+
   newvalues = copy(s.values)
+
+  #If there are knots in _knots_ that are already in the spline ,then just change the value and add
+  #that index to a list of knots and values to be deleted
+  todelete = Array{Int, 1}(0)
   for (i, knot) in enumerate(knots)
     if knot in s.knots
       newvalues[findin(s.knots, knot)[1]] = values[i]
-      deleteat!(knots, i)
+      push!(todelete, i)
     end
   end
+  #delete whatever was in the list
+  reverse!(todelete) #we have to delete starting at the end so that a deletion at one index does not throw off future deletions
+  for i in todelete
+    deleteat!(knots, i)
+    deleteat!(values, i)
+  end
+
 
   append!(s.knots, knots)
   append!(newvalues, values)
