@@ -1,3 +1,4 @@
+import Base: extrema
 function forwardDifference{T<:Number}(x::AbstractArray{T, 1})
     length = size(x, 1)
     return [x[i]-x[i-1] for i in 2:length]
@@ -615,4 +616,3 @@ export uniform_discretize
 export adaptive_discretize
 export indomain
 export domain
-
