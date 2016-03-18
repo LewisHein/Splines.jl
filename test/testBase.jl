@@ -94,6 +94,9 @@ insert!(s, newknot, newvalue)
 @test s(newknot) == newvalue
 
 #the array version of insert also works
+knots_somesize = [Float64(i) for i in rand(3:10)]
+values_someothersize = [rand() for i in 11:20]
+@test_throws ArgumentError insert!(s, knots_somesize, values_someothersize) #test that arrays of different sizes are rejected
 oldknots = copy(s.knots)
 oldvalues = copy(s.values)
 newknots = [Float64(rand(domain(s)[1]:rand():domain(s)[2])) for i in 1:rand(1:10)]

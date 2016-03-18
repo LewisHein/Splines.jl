@@ -182,6 +182,10 @@ end
 
 #"""Add a bunch of knots to a spline all at once"""
 function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
+  if length(knots) != length(values)
+    throw(ArgumentError("knots and values must be the same size"))
+  end
+  
   newvalues = copy(s.values)
   for (i, knot) in enumerate(knots)
     if knot in s.knots
@@ -189,7 +193,7 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
       deleteat!(knots, i)
     end
   end
-  
+
   append!(s.knots, knots)
   append!(newvalues, values)
 
