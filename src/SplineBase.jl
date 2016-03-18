@@ -180,22 +180,22 @@ function insert!{T}(s::Spline{T}, knot::T, value::T)
 	return nothing
 end
 
-"""Add a bunch of knots to a spline all at once"""
+#"""Add a bunch of knots to a spline all at once"""
 function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
   newvalues = copy(s.values)
   for (i, knot) in enumerate(knots)
-    if knot in knots
-      newvalues[findin(knots, knot)[1]] = values[i]
+    if knot in s.knots
+      newvalues[findin(s.knots, knot)[1]] = values[i]
       deleteat!(knots, i)
     end
   end
-
+  
   append!(s.knots, knots)
   append!(newvalues, values)
 
   #Now the knots must be sorted to be in increasing order and the values must re-arranged in the same manner
-  perm = sortperm(knots)
-  s.knots = knots[perm]
+  perm = sortperm(s.knots)
+  s.knots = s.knots[perm]
   newvalues = newvalues[perm]
 
   recalculate!(s, newvalues)

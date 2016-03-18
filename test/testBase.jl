@@ -100,7 +100,7 @@ newknots = [Float64(rand(domain(s)[1]:rand():domain(s)[2])) for i in 1:rand(1:10
 newvalues = [rand() for i in newknots]
 insert!(s, newknots, newvalues)
 for (i, knot) in enumerate(newknots)
-	@test s(knot) == newvalues[i]
+	@test_approx_eq s(knot) newvalues[i]
 end
 
 #test that the new knots were properly added
@@ -108,7 +108,7 @@ end
 
 #test that the previous values are unchanged
 for (i, knot) in enumerate(oldknots)
-	@test s(knot) = oldvalues[i]
+	@test_approx_eq s(knot) oldvalues[i]
 end
 
 ##### End insert! tests
