@@ -140,12 +140,32 @@ function call{T}(s::Spline{T}, x::T)
 	return @evalpoly(h, s.a[bracket], s.b[bracket], s.c[bracket], s.d[bracket])::T
 end
 
+"""calling a spline _f_ with another spline _g_ as argument produces a spline approximation to f(g)"""
+function call{T}(f::Spline{T}, g::Spline{T})
+  gmax, gmin = extrema(g)
+  if !indomain(f, gmax) || !indomain(f, gmin)
+    throw(DomainError())
+  end
+
+  # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
+  g_discrete = adaptive_discretize(g)
+
+  newknots = g_discrete[:x]
+  newvalues = [f(x) for x in g_discrete[:y]]
+  f_warped = deepcopy(f)
+
+  #insert the new knots into f_warped in preparation for moving them to complete the warping
+  insert!(f_warped, newknots, newvalues)
+
+  return f_warped
+end
+
 """Add a knot to a spline"""
 function insert!{T}(s::Spline{T}, knot::T, value::T)
 	knots = s.knots
 	values = [s(i)::T for i in knots] #FIXME: why allocate a whole new array? all but one of the values are already stored in s.a
 	if knot in knots
-		values[findin(knots, knot)[1]] == value
+		values[findin(knots, knot)[1]] == value #FIXME: this should be assignment
 		recalculate!(s, values)
 		return nothing
 	end
@@ -159,6 +179,43 @@ function insert!{T}(s::Spline{T}, knot::T, value::T)
 
 	recalculate!(s, values)
 	return nothing
+end
+
+#"""Add a bunch of knots to a spline all at once"""
+function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
+  if length(knots) != length(values)
+    throw(ArgumentError("knots and values must be the same size"))
+  end
+
+  newvalues = copy(s.values)
+
+  #If there are knots in _knots_ that are already in the spline ,then just change the value and add
+  #that index to a list of knots and values to be deleted
+  todelete = Array{Int, 1}(0)
+  for (i, knot) in enumerate(knots)
+    if knot in s.knots
+      newvalues[findin(s.knots, knot)[1]] = values[i]
+      push!(todelete, i)
+    end
+  end
+  #delete whatever was in the list
+  reverse!(todelete) #we have to delete starting at the end so that a deletion at one index does not throw off future deletions
+  for i in todelete
+    deleteat!(knots, i)
+    deleteat!(values, i)
+  end
+
+
+  append!(s.knots, knots)
+  append!(newvalues, values)
+
+  #Now the knots must be sorted to be in increasing order and the values must re-arranged in the same manner
+  perm = sortperm(s.knots)
+  s.knots = s.knots[perm]
+  newvalues = newvalues[perm]
+
+  recalculate!(s, newvalues)
+  return nothing
 end
 
 """Delete a knot or knots from a spline"""
