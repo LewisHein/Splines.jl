@@ -361,7 +361,7 @@ end
 function derivative{T}(s::Spline{T})
 	nSplines = size(s.a, 1)
 
-	sDeriv = s
+	sDeriv = deepcopy(s)
 	for i in 1:nSplines
 		sDeriv.a[i] = sDeriv.b[i]
 		sDeriv.b[i] = sDeriv.c[i]*2
