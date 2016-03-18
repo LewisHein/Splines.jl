@@ -416,6 +416,113 @@ function discretize{T}(s::Spline{T}, mesh::AbstractArray{T})
 	return discretized
 end
 
+"""A helper function to find the maximum absolute error due to linear interpolation of
+a cubic spline over a mesh _x_
+
+Parameters:
+ - *s* is the spline that is being discretized
+ - *x* holds x-values that need to be used between the current knot (which is not easily visible to this function) and the one after it to get a reasonable approximation.
+ - *a*, *b*, *c*, and *d* are the polynomial coefficients of the spline at the knot where this is being done.
+"""
+function find_maxϵ{T}(s::Spline{T}, x::Array{T, 1}, a::T, b::T, c::T, d::T)
+  if any(isnan(x))
+    throw(ArgumentError("NAN encountered in find_maxϵ"))
+  end
+
+  maxϵ = maxϵ_pos = maxϵ_index = typemin(T) #maxcubic(x[1], x[2], 0, s.b[i]-((s(s.knots[i]+x[2])-s(s.knots[i]+x[1]))/(x[2]-x[1])), s.c[i], s.d[i])
+	for (j, xj) in take(enumerate(x), length(x)-1)
+    lin_approx_slope = (s(x[j+1])-s(xj))/(x[j+1]-xj)
+	  maxϵ_new, maxϵ_pos_new = maxabscubic(xj-x[1], x[j+1]-x[1], a-(s(xj)-lin_approx_slope*(xj-x[1])), b-lin_approx_slope, c, d)
+    @assert maxϵ_pos != xj-x[1] "$xj $(a-(s(xj)-lin_approx_slope*(xj-x[1])))"
+
+	  if maxϵ_new > maxϵ
+	    maxϵ = maxϵ_new
+		  maxϵ_pos = maxϵ_pos_new
+		  maxϵ_index = j
+    end
+  end
+
+  return maxϵ, maxϵ_pos, maxϵ_index
+end
+
+
+
+"""
+A helper function for adaptive_discretize_mesh
+
+Parameters:
+ - *s* is the spline that is being discretized.
+ - *x* holds x-values that need to be used between the current knot (which is not easily visible to this function) and the one after it to get a reasonable approximation.
+ - *absTol* is the maximum absolute error that is tolerated
+ - *a*, *b*, *c*, and *d* are the polynomial coefficients of the spline at the knot where this is being done.
+
+Return:
+ - The new error after adding zero or more values to the mesh *x*
+
+Given _s_ and _x_, this function finds the maximum error associated with using linear
+interpolation over the mesh _x_. If this error is too large, then it adds a new value
+to _x_ where the max error was and returns the new error.
+"""
+function densify_mesh!{T}(s::Spline{T}, x::Array{T, 1}, absTol::T, a::T, b::T, c::T, d::T)
+  maxϵ, maxϵ_pos, maxϵ_index = find_maxϵ(s, x, a, b, c, d)
+  @assert !isnan(maxϵ_pos)
+  if maxϵ > absTol
+    if maxϵ_pos == x[maxϵ_index+1]
+      insert!(x, maxϵ_index+1, (x[maxϵ_index+1]+x[maxϵ_index])/2)
+    elseif maxϵ_pos in x
+      error("duplicate value $maxϵ_pos x=$x")
+    else
+      insert!(x, maxϵ_index+1, x[1]+maxϵ_pos)
+    end
+    #but maxϵ has now changed, so we re-compute it
+    maxϵ = find_maxϵ(s, x, a, b, c, d)[1]
+  end
+
+  return maxϵ
+end
+
+"""
+Create an adaptive mesh of points for discretizing a spline _s_.
+
+Parameters:
+ - *s* A spline to discretize
+ - *tol* The tolerance. If this is negative, then it is assumed to be a relative tolerance (with a few modifications to get around the problem of the spline being 0 somewhere)
+ otherwise, it is assumed to be an absolute tolerance.
+"""
+function adaptive_discretize_mesh{T}(s::Spline{T}, tol::Number=-.01)
+
+	if tol > 0
+		absTol = tol
+	end
+	nKnots = length(s.knots)
+
+	x = Array{Array{T, 1}, 1}(nKnots)
+
+	for i in 1:nKnots-1
+		x[i] = [s.knots[i], s.knots[i+1]]
+		maxϵ = maxabscubic(0.0, x[i][2]-x[i][1], zero(T), s.b[i]-((s.values[i+1]-s.values[i])/(s.knots[i+1]-s.knots[i])), s.c[i], s.d[i])[1]
+
+		if tol < 0
+			absTol = abs(tol)*maxabscubic(zero(T), s.knots[i+1]-s.knots[i], s.a[i], s.b[i], s.c[i], s.d[i])[1]
+		end
+
+		while maxϵ > absTol
+      maxϵ = densify_mesh!(s, x[i], absTol, s.a[i], s.b[i], s.c[i], s.d[i])
+		end
+		deleteat!(x[i], length(x[i]))
+	end
+	x[nKnots] = [s.knots[nKnots]]
+
+	return vcat(x...)::Array{T, 1}
+end
+
+function adaptive_discretize{T}(s::Spline{T}, tol::Number=-.01)
+	mesh = adaptive_discretize_mesh(s, tol)
+	y = [s(x) for x in mesh]
+
+	return Dict(:x => mesh, :y => y)
+end
+
 
 export call
 export insert!
@@ -433,5 +540,6 @@ export Spline
 export derivative
 export discretize
 export uniform_discretize
+export adaptive_discretize
 export indomain
 export domain
