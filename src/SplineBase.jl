@@ -5,6 +5,7 @@ end
 
 type Spline{T<:Number}
     knots::Array{T, 1}
+    values::Array{T, 1}
     a::Array{T, 1}
     b::Array{T, 1}
     c::Array{T, 1}
@@ -61,7 +62,7 @@ type Spline{T<:Number}
 	LAPACK.gtsv!(lowerDiag, diag, upperDiag, c)
 	d = [(c[i+1]-c[i])/(3*h[i]) for i in 1:nKnots-1]
 	b = [df[i]-((h[i]/3)*((2*c[i])+c[i+1])) for i in 1:nKnots-1]
-	new(knots, a[1:nKnots-1], b, c[1:nKnots-1], d)
+	new(knots, values, a[1:nKnots-1], b, c[1:nKnots-1], d)
     end
 end
 
