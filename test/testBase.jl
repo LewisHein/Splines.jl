@@ -49,7 +49,7 @@ knotsDup[dupInd] = knotsDup[dupInd2]
 
 domainMin = minimum(knots)
 domainMax = maximum(knots)
-@test domain(s) == domainMin:domainMax
+@test domain(s) == (domainMin, domainMax)
 
 value_indomain = rand(domainMin:domainMax)
 value_notindomain = value_indomain + domainMax + rand(Float64)
@@ -63,8 +63,8 @@ end
 
 function test_values()
 	tol = rand(Float64)/10
-	disc = discretize(s, tol)
-	mesh = Splines.discretize_mesh(s, tol)
+	disc = uniform_discretize(s, tol)
+	mesh = Splines.uniform_discretize_mesh(s, tol)
 	for i in eachindex(disc)
 		@test s(mesh[i]) ==  disc[i]
 	end
@@ -85,5 +85,5 @@ test_values()
 
 ##### insert!
 # just change value if knot is already there
-insert!(s, Float64(randindex()),  rand()) 
+insert!(s, Float64(randindex()),  rand())
 test_values()
