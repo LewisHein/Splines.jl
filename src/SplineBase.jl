@@ -185,13 +185,33 @@ function call{T}(f::Spline{T}, g::Spline{T})
   #However, it is very necessary that the knots/values in f be preserved in the transformation;
   #otherwise, the transformed spline might bear little resemblance to what it should.
   #The simplest way to do this is, for each knot $f_k$ in f to put a knot $g_x$ into g's list of knots such that g($g_k$) = $f_k$
-  
+
   newknots = g_discrete[:x]
   newvalues = [f(x) for x in g_discrete[:y]]
-  f_warped = deepcopy(f)
+  f_warped = Spline(newknots, newvalues)
 
-  #insert the new knots into f_warped in preparation for moving them to complete the warping
-  insert!(f_warped, g_discrete[:y], newvalues)
+  #We now have some approximation to f(g(t)), but it probably isn't very good.
+  # So we begin going through and trying values halfway between the knots (from g_discrete[:x])
+  # If these values differ too greatly from the true f(g(t)), then we add a knot there.
+  tol = .001 #FIXME: This is purely arbitrary and probably a bad value
+  #FIXME: This loop implicitly assumes that the maximum error occurs halfway between knots.
+  #This assumption is probably not too terrible, but it would be better to find the true location
+  #of the max error and put the knot there
+  maxϵ = typemax(T)
+  while maxϵ > tol
+    maxϵ = typemin(T)
+    for i in 2:length(f_warped.knots)
+      x = (f_warped.knots[i]+f_warped.knots[i-1])/2
+      ϵ = abs(f_warped(x)-f(g(x)))
+      if ϵ > tol
+        insert!(f_warped, x, f(g(x)))
+      end
+      if ϵ > maxϵ
+        maxϵ = ϵ
+      end
+    end
+  end
+
 
   return f_warped
 end
