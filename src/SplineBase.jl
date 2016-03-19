@@ -182,6 +182,10 @@ function call{T}(f::Spline{T}, g::Spline{T})
   # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
   g_discrete = adaptive_discretize(g)
 
+  #However, it is very necessary that the knots/values in f be preserved in the transformation;
+  #otherwise, the transformed spline might bear little resemblance to what it should.
+  #The simplest way to do this is, for each knot $f_k$ in f to put a knot $g_x$ into g's list of knots such that g($g_k$) = $f_k$
+  
   newknots = g_discrete[:x]
   newvalues = [f(x) for x in g_discrete[:y]]
   f_warped = deepcopy(f)
