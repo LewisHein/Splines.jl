@@ -1,3 +1,7 @@
+import Base: extrema
+
+min_knot_dist_factor = 10000 #knots must be separated by at leas 10000*eps(T) to be considered unique.
+
 function forwardDifference{T<:Number}(x::AbstractArray{T, 1})
     length = size(x, 1)
     return [x[i]-x[i-1] for i in 2:length]
@@ -13,14 +17,14 @@ type Spline{T<:Number}
 
 
     function Spline(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
-	nKnots = length(knots)
+	    nKnots = length(knots)
     	if nKnots <= 1
-		throw(ArgumentError("There must be at least two knots"))
-	end
+		      throw(ArgumentError("There must be at least two knots"))
+	    end
 
-	if length(values) != nKnots
-		throw(ArgumentError("Values is of wrong size"))
-	end
+      if length(values) != nKnots
+		    throw(ArgumentError("Values is of wrong size"))
+	    end
 
 	if any(isnan(knots))
 		throw(ArgumentError("Knots cannot be NaN"))
@@ -34,11 +38,22 @@ type Spline{T<:Number}
 		throw(ArgumentError("Knots must be sorted"))
 	end
 
+  todelete = Array{Int, 1}(0)
 	for knot in 2:nKnots
 		if knots[knot] == knots[knot-1]
 			throw(ArgumentError("Knots must all be unique"))
 		end
+    if knots[knot]-knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two knots & values by their averages
+      knots[knot] = (knots[knot]+knots[knot-1])/2
+      values[knot] = (values[knot]+values[knot-1])/2
+      push!(todelete, knot)
+    end
 	end
+  for i in todelete
+    deleteat!(knots, i)
+    deleteat!(values, i)
+  end
+  nKnots = length(knots)
 
 	a = values
 	h = forwardDifference(knots)
@@ -68,6 +83,7 @@ end
 
 """Recalculate a spline with new values, assuming that the corresponding knots are already in s.knots"""
 function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
+  @assert issorted(s.knots) "Knots are not sorted. This is probably a bug in the Splines library"
 	nKnots = length(s.knots)
 	nvalues = length(values)
 
@@ -78,6 +94,23 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	if any(isnan(values))
 		throw(ArgumentError("values cannot contain NaN"))
 	end
+
+  todelete = Array{Int, 1}(0)
+	for knot in 2:nKnots
+		if s.knots[knot] == s.knots[knot-1]
+			throw(ArgumentError("s.knots must all be unique"))
+		end
+    if s.knots[knot]-s.knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
+      s.knots[knot] = (s.knots[knot]+s.knots[knot-1])/2
+      values[knot] = (values[knot]+values[knot-1])/2
+      push!(todelete, knot)
+    end
+	end
+  for i in todelete
+    deleteat!(s.knots, i)
+    deleteat!(values, i)
+  end
+  nKnots = length(s.knots)
 
 	a = values
 	h = forwardDifference(s.knots)
@@ -149,12 +182,16 @@ function call{T}(f::Spline{T}, g::Spline{T})
   # approixmating f(g) is best done by first approximating g with first-order polynomials, and then strechting or shrinking intervals of f appropriately
   g_discrete = adaptive_discretize(g)
 
+  #However, it is very necessary that the knots/values in f be preserved in the transformation;
+  #otherwise, the transformed spline might bear little resemblance to what it should.
+  #The simplest way to do this is, for each knot $f_k$ in f to put a knot $g_x$ into g's list of knots such that g($g_k$) = $f_k$
+  
   newknots = g_discrete[:x]
   newvalues = [f(x) for x in g_discrete[:y]]
   f_warped = deepcopy(f)
 
   #insert the new knots into f_warped in preparation for moving them to complete the warping
-  insert!(f_warped, newknots, newvalues)
+  insert!(f_warped, g_discrete[:y], newvalues)
 
   return f_warped
 end
@@ -185,6 +222,9 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   if length(knots) != length(values)
     throw(ArgumentError("knots and values must be the same size"))
   end
+  if unique(knots) != knots
+    throw(ArgumentError("knots must all be unique"))
+  end
 
   newvalues = copy(s.values)
 
@@ -193,8 +233,9 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   todelete = Array{Int, 1}(0)
   for (i, knot) in enumerate(knots)
     if knot in s.knots
-      newvalues[findin(s.knots, knot)[1]] = values[i]
-      push!(todelete, i)
+      duplicate_pos = findin(s.knots, knot)[1]
+      newvalues[duplicate_pos] = values[i] #change the value
+      push!(todelete, i) #and add the index to a list of indecies to delete
     end
   end
   #delete whatever was in the list
@@ -203,7 +244,6 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
     deleteat!(knots, i)
     deleteat!(values, i)
   end
-
 
   append!(s.knots, knots)
   append!(newvalues, values)
@@ -216,6 +256,51 @@ function insert!{T}(s::Spline{T}, knots::AbstractArray{T, 1}, values::AbstractAr
   recalculate!(s, newvalues)
   return nothing
 end
+
+"""Move the knot at knotIndex to the location newlocation"""
+function moveknot!{T}(s::Spline{T}, knotIndex::Int, newlocation::T)
+  if knotIndex > length(s.knots) || knotIndex <1
+    throw(BoundsError(s, knotIndex))
+  end
+
+  if !indomain(s, newlocation)
+    throw(DomainError())
+  end
+
+  if newlocation in s.knots
+    throw(ArgumentError("newlocation cannot be a pre-existing knot"))
+  end
+
+  s.knots[knotIndex] = newlocation
+
+  recalculate!(s, s.values)
+end
+
+"""Move the knots at _knotIndecies_ to the new locations in _newlocations_"""
+function moveknot!{T}(s::Spline{T}, knotIndecies::AbstractArray{Int, 1}, newlocations::AbstractArray{T, 1})
+  if length(knotIndecies) != length(newlocations)
+    throw(ArgumentError("knotIndecies and newlocations must have the same length, not $(length(knotIndecies)) and $(length(newlocations))"))
+  end
+
+  for index in knotIndecies
+    if index > length(s.knots) || index < 1
+      throw(BoundsError(s, index))
+    end
+  end
+
+  for newloc in newlocations
+    if !indomain(s, newloc)
+      throw(DomainError)
+    end
+  end
+
+  for (i, index) in enumerate(knotIndecies)
+    s.knots[index] = newlocations[i]
+  end
+
+  recalculate!(s, s.values)
+end
+
 
 """Delete a knot or knots from a spline"""
 function deleteknotat!{T}(s::Spline{T}, knotIndex::Integer...)
@@ -655,6 +740,7 @@ end
 
 export call
 export insert!
+export moveknot!
 export deleteknotat!
 export trimstart!
 export trimend!
