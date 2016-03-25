@@ -58,7 +58,7 @@ type Spline{T<:Number}
 	a = values
 	h = forwardDifference(knots)
 	df = forwardDifference(values) ./ h
-# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
@@ -115,7 +115,7 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	a = values
 	h = forwardDifference(s.knots)
 	df = forwardDifference(values) ./ h
-# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
@@ -429,31 +429,6 @@ function maxabs(s::Spline)
 end
 
 
-"""Compute the maximum absolute value of the second derivative of s"""
-function maxabs2deriv(s::Spline)
-	maxA2D = sum = 0
-	for i in 1:length(s.knots)-1
-		maxA2D = max(maxA2D, abs(sum += (2*s.c[i]+6*s.d[i]*(s.knots[i+1]-s.knots[i]))))
-	end
-
-	return maxA2D
-end
-
-
-function derivative{T}(s::Spline{T})
-	nSplines = length(s.a)
-
-	sDeriv = deepcopy(s)
-	for i in 1:nSplines
-		sDeriv.a[i] = sDeriv.b[i]
-		sDeriv.b[i] = sDeriv.c[i]*2
-		sDeriv.c[i] = sDeriv.d[i]*3
-		sDeriv.d[i] = 0
-	end
-
-	return sDeriv
-end
-
 """Find the appropriate step size for discretizing a spline with a uniform mesh maximum absolute error _tol_ due to linear interpolation. If negative, this will be interpreted as a relative error from the maximum value"""
 function find_stepsize{T}(s::Spline{T}, tol::Number)
 	if tol < 0
@@ -618,9 +593,7 @@ export minimum
 export extrema
 export xmax
 export maxabs
-export maxabs2deriv
 export Spline
-export derivative
 export discretize
 export uniform_discretize
 export adaptive_discretize
