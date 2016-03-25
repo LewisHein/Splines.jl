@@ -111,7 +111,7 @@ function maxabscubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
 
 	theMax = max(val1, val2, val3, val4)
 
-#	println(val1, val2, val3, val4, theMax)
+  #	println(val1, val2, val3, val4, theMax)
 	maxPos = typemin(T)
 	if val1 == theMax
 		maxPos = x0
@@ -121,7 +121,7 @@ function maxabscubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
 		maxPos = root2
 	elseif val4 == theMax
 		maxPos = x1
-#=	else
+  #=	else
     println("Failed to find the max in maxabscubic. This is probably a bug in Splines.jl")
 		return nothing=#
 	end
@@ -191,4 +191,8 @@ end
 
 function mincubic{T}(x::T, a::T, b::T, c::T, d::T) #search between 0 and x
 	return mincubic(zero(T), x, a, b, c, d)
+end
+
+function integrate_cubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
+  return @evalpoly(x1, 0, a, b, c/2, d/3)-@evalpoly(x2, 0, a, b, c/2, d/3)
 end
