@@ -58,7 +58,7 @@ type Spline{T<:Number}
 	a = values
 	h = forwardDifference(knots)
 	df = forwardDifference(values) ./ h
-# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
@@ -115,7 +115,7 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	a = values
 	h = forwardDifference(s.knots)
 	df = forwardDifference(values) ./ h
-# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
@@ -185,13 +185,33 @@ function call{T}(f::Spline{T}, g::Spline{T})
   #However, it is very necessary that the knots/values in f be preserved in the transformation;
   #otherwise, the transformed spline might bear little resemblance to what it should.
   #The simplest way to do this is, for each knot $f_k$ in f to put a knot $g_x$ into g's list of knots such that g($g_k$) = $f_k$
-  
+
   newknots = g_discrete[:x]
   newvalues = [f(x) for x in g_discrete[:y]]
-  f_warped = deepcopy(f)
+  f_warped = Spline(newknots, newvalues)
 
-  #insert the new knots into f_warped in preparation for moving them to complete the warping
-  insert!(f_warped, g_discrete[:y], newvalues)
+  #We now have some approximation to f(g(t)), but it probably isn't very good.
+  # So we begin going through and trying values halfway between the knots (from g_discrete[:x])
+  # If these values differ too greatly from the true f(g(t)), then we add a knot there.
+  tol = .001 #FIXME: This is purely arbitrary and probably a bad value
+  #FIXME: This loop implicitly assumes that the maximum error occurs halfway between knots.
+  #This assumption is probably not too terrible, but it would be better to find the true location
+  #of the max error and put the knot there
+  maxϵ = typemax(T)
+  while maxϵ > tol
+    maxϵ = typemin(T)
+    for i in 2:length(f_warped.knots)
+      x = (f_warped.knots[i]+f_warped.knots[i-1])/2
+      ϵ = abs(f_warped(x)-f(g(x)))
+      if ϵ > tol
+        insert!(f_warped, x, f(g(x)))
+      end
+      if ϵ > maxϵ
+        maxϵ = ϵ
+      end
+    end
+  end
+
 
   return f_warped
 end
@@ -352,159 +372,7 @@ function trim!{T}(s::Spline{T}, startx::T, endx::T)
 	deleteknotat!(s, indeciesToTrim...)
 end
 
-#FIXME: NaN if d = 0
-function maxabscubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
-  @assert !isnan(x0)
-  @assert !isnan(x1)
-  @assert !isnan(a)
-  @assert !isnan(b)
-  @assert !isnan(c)
-  @assert !isnan(d)
-  #print("x0, x1, a, b, c, d: ", x0, a, b, c, d)
-  #print("\n")
-  if x0 == x1 #then there is no real max, but we do the sanest possible thing
-    return (x0, @evalpoly(x0, a, b, c, d))
-  end
-  if d == 0 #then the max is at an endpoint.
-    endpt1_val = @evalpoly(x0, a, b, c, d)
-    endpt2_val = @evalpoly(x1, a, b, c, d)
-    return endpt2_val > endpt1_val ? (endpt2_val, x1) : (endpt1_val, x0)
-  end
-
-	#otherwise, we use the quadratic formula on the derivative
-	discriminant = (c)^2-(3d*b)
-	if discriminant >= 0 #then the max may be  in [x0, x1]
-		root1 = (-sqrt(discriminant)-c)/(3*d)
-		root2 = (sqrt(discriminant)-c)/(3*d)
-	end
-
-
-	val1 = abs(@evalpoly(x0, a, b, c, d)::T)
-	if discriminant >= 0
-		val2 = abs(@evalpoly(root1, a, b, c, d)::T)
-		val3 = abs(@evalpoly(root2, a, b, c, d)::T)
-	else
-		val2 = typemin(T)
-		val3 = typemin(T)
-	end
-	val4 = abs(@evalpoly(x1, a, b, c, d)::T)
-
-	if discriminant >= 0
-		if root1 < x0 || root1 >x1
-			val2 = typemin(T)
-		end
-		if root2 < x0 || root2 > x1
-			val3 = typemin(T)
-		end
-	end
-
-	theMax = max(val1, val2, val3, val4)
-
-#	println(val1, val2, val3, val4, theMax)
-	maxPos = typemin(T)
-	if val1 == theMax
-		maxPos = x0
-	elseif val2 == theMax
-		maxPos = root1
-	elseif val3 == theMax
-		maxPos = root2
-	elseif val4 == theMax
-		maxPos = x1
-#=	else
-    println("Failed to find the max in maxabscubic. This is probably a bug in Splines.jl")
-		return nothing=#
-	end
-
-	return (theMax, convert(T, maxPos))
-end
-
-function maxabscubic{T}(x::T, a::T, b::T, c::T, d::T) #search on [0, x]
-	return maxcubic(zero(T), x, a, b, c, d)
-end
-
-#FIXME: NaN if d = 0
-function maxcubic(h, a, b, c, d) #a+bx+cx^2+dx^3
-	#We use the quadratic formula on the derivative
-	discriminant = (2c)^2-4*(3d*b)
-	if discriminant < 0
-		return -Inf
-	end
-
-	root1 = (-2*c-sqrt(discriminant))/(6*d)
-	root2 = (-2*c+sqrt(discriminant))/(6*d)
-
-	val1 = @evalpoly(0, a, b, c, d)
-	val2 = @evalpoly(root1, a, b, c, d)
-	val3 = @evalpoly(root2, a, b, c, d)
-	val4 = @evalpoly(h, a, b, c, d)
-
-	if root1 < 0 || root1 >h
-		val2 = -Inf
-	end
-	if root2 < 0 || root2 > h
-		val3 = -Inf
-	end
-
-	theMax = max(val1, val2, val3, val4)
-
-	maxPos = -Inf
-	if val1 == theMax
-		maxPos = 0
-	elseif val2 == theMax
-		maxPos = root1
-	elseif val3 == theMax
-		maxPos = root2
-	elseif val4 == theMax
-		maxPos = h
-	else
-		error("Failed to find the max in maxcubic. This is probably a bug in Splines.jl")
-	end
-
-	return (theMax, maxPos)
-end
-
-
-function mincubic(h, a, b, c, d) #a+bx+cx^2+dx^3
-	#We use the quadratic formula on the derivative
-	discriminant = (2*c)^2-4*(3*d*b)
-	if discriminant < 0
-		return Inf
-	end
-
-	root1 = (-2*c-sqrt(discriminant))/(6*d)
-	root2 = (-2*c+sqrt(discriminant))/(6*d)
-
-	val1 = @evalpoly(0, a, b, c, d)
-	val2 = @evalpoly(root1, a, b, c, d)
-	val3 = @evalpoly(root2, a, b, c, d)
-	val4 = @evalpoly(h, a, b, c, d)
-
-	if root1 < 0 || root1 > h
-		val2 = Inf
-	end
-
-	if root2 < 0 || root2 > h
-		val3 = Inf
-	end
-
-	theMin = min(val1, val2, val3, val4)
-
-	minPos = Inf
-	if val1 == theMin
-		minPos = 0
-	elseif val2 == theMin
-		minPos = root1
-	elseif val3 == theMin
-		minPos = root2
-	elseif val4 == theMin
-		minPos = h
-	else
-		error("Failed to find the minium. This is probably a bug in Splines.jl")
-	end
-
-	return (theMin, minPos)
-end
-
+include("cubic_helpers.jl")
 
 function maximum{T}(s::Spline{T})
 	maxS = -Inf
@@ -560,31 +428,6 @@ function maxabs(s::Spline)
 	return max(abs(maximum(s)), abs(minimum(s)))
 end
 
-
-"""Compute the maximum absolute value of the second derivative of s"""
-function maxabs2deriv(s::Spline)
-	maxA2D = sum = 0
-	for i in 1:length(s.knots)-1
-		maxA2D = max(maxA2D, abs(sum += (2*s.c[i]+6*s.d[i]*(s.knots[i+1]-s.knots[i]))))
-	end
-
-	return maxA2D
-end
-
-
-function derivative{T}(s::Spline{T})
-	nSplines = length(s.a)
-
-	sDeriv = deepcopy(s)
-	for i in 1:nSplines
-		sDeriv.a[i] = sDeriv.b[i]
-		sDeriv.b[i] = sDeriv.c[i]*2
-		sDeriv.c[i] = sDeriv.d[i]*3
-		sDeriv.d[i] = 0
-	end
-
-	return sDeriv
-end
 
 """Find the appropriate step size for discretizing a spline with a uniform mesh maximum absolute error _tol_ due to linear interpolation. If negative, this will be interpreted as a relative error from the maximum value"""
 function find_stepsize{T}(s::Spline{T}, tol::Number)
@@ -750,9 +593,7 @@ export minimum
 export extrema
 export xmax
 export maxabs
-export maxabs2deriv
 export Spline
-export derivative
 export discretize
 export uniform_discretize
 export adaptive_discretize
