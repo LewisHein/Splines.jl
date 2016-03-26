@@ -194,5 +194,5 @@ function mincubic{T}(x::T, a::T, b::T, c::T, d::T) #search between 0 and x
 end
 
 function integrate_cubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
-  return @evalpoly(x1, 0, a, b, c/2, d/3)-@evalpoly(x2, 0, a, b, c/2, d/3)
+  return @evalpoly(x1, 0, a, b/2, c/3, d/4)-@evalpoly(x0, 0, a, b/2, c/3, d/4)
 end

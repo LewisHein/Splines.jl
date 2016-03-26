@@ -4,4 +4,4 @@ using Base.Test
 # write your own tests here
 include("testBase.jl")
 include("testMath.jl")
-
+include("testCalculus.jl")
