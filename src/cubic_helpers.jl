@@ -183,7 +183,7 @@ function mincubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
 	elseif val4 == theMin
 		minPos = x1
 	else
-		error("Failed to find the minium. This is probably a bug in Splines.jl")
+		error("Failed to find the minimum. This is probably a bug in Splines.jl")
 	end
 
 	return (theMin, minPos)
