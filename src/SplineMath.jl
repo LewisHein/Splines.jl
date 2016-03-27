@@ -16,15 +16,16 @@ function apply_binary_op{T}(f::Spline{T}, g::Spline{T}, op::Function)
 			push!(newknots, knot)
 		end
 	end
-	
+
 	newknots = sort(unique(newknots))
+	@assert !any(isnan(newknots))
 
 	newvalues = similar(newknots)
 
 	for (i, knot) in enumerate(newknots)
 		newvalues[i] = op(f(knot), g(knot))
 	end
-			
+
 	return Spline(newknots, newvalues)
 end
 
