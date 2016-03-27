@@ -76,7 +76,7 @@ function maxabscubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
   if x0 == x1 #then there is no real max, but we do the sanest possible thing
     return (x0, @evalpoly(x0, a, b, c, d))
   end
-  if d == 0 #then the max is at an endpoint.
+  if d == 0 #then the max is at an endpoint. #FIXME: I don't think so
     endpt1_val = @evalpoly(x0, a, b, c, d)
     endpt2_val = @evalpoly(x1, a, b, c, d)
     return endpt2_val > endpt1_val ? (endpt2_val, x1) : (endpt1_val, x0)
@@ -137,10 +137,10 @@ function mincubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
   if x0 == x1
     return (x0, @evalpoly(x0, a, b, c, d))
   end
-  if d == 0 #then the max is at an endpoint.
+  if d == 0 #then the min is at an endpoint. #FIXME: I don't think so
     endpt1_val = @evalpoly(x0, a, b, c, d)
     endpt2_val = @evalpoly(x1, a, b, c, d)
-    return endpt2_val > endpt1_val ? (endpt2_val, x1) : (endpt1_val, x0)
+    return endpt2_val < endpt1_val ? (endpt2_val, x1) : (endpt1_val, x0)
   end
 
 	#otherwise, we use the quadratic formula on the derivative
