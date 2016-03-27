@@ -17,14 +17,14 @@ type Spline{T<:Number}
 
 
     function Spline(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1})
-	    nKnots = length(knots)
+	nKnots = length(knots)
     	if nKnots <= 1
 		      throw(ArgumentError("There must be at least two knots"))
-	    end
+	end
 
-      if length(values) != nKnots
+	if length(values) != nKnots
 		    throw(ArgumentError("Values is of wrong size"))
-	    end
+	end
 
 	if any(isnan(knots))
 		throw(ArgumentError("Knots cannot be NaN"))
@@ -38,27 +38,29 @@ type Spline{T<:Number}
 		throw(ArgumentError("Knots must be sorted"))
 	end
 
-  todelete = Array{Int, 1}(0)
+	todelete = Array{Int, 1}(0)
 	for knot in 2:nKnots
 		if knots[knot] == knots[knot-1]
 			throw(ArgumentError("Knots must all be unique"))
 		end
-    if knots[knot]-knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two knots & values by their averages
-      knots[knot] = (knots[knot]+knots[knot-1])/2
-      values[knot] = (values[knot]+values[knot-1])/2
-      push!(todelete, knot)
-    end
+		if knots[knot]-knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two knots & values by their averages
+			knots[knot] = (knots[knot]+knots[knot-1])/2
+			values[knot] = (values[knot]+values[knot-1])/2
+			push!(todelete, knot-1)
+		end
 	end
-  for i in todelete
-    deleteat!(knots, i)
-    deleteat!(values, i)
-  end
-  nKnots = length(knots)
+	
+	reverse!(todelete) #reverse the list of knots to delete so that removing one does not affect subsequent removals
+	for i in todelete
+	    deleteat!(knots, i)
+	    deleteat!(values, i)
+	end
+	nKnots = length(knots)
 
 	a = values
 	h = forwardDifference(knots)
 	df = forwardDifference(values) ./ h
-  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+	# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
@@ -95,27 +97,29 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 		throw(ArgumentError("values cannot contain NaN"))
 	end
 
-  todelete = Array{Int, 1}(0)
+	todelete = Array{Int, 1}(0)
 	for knot in 2:nKnots
 		if s.knots[knot] == s.knots[knot-1]
 			throw(ArgumentError("s.knots must all be unique"))
 		end
-    if s.knots[knot]-s.knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
-      s.knots[knot] = (s.knots[knot]+s.knots[knot-1])/2
-      values[knot] = (values[knot]+values[knot-1])/2
-      push!(todelete, knot)
-    end
+		if s.knots[knot]-s.knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
+			s.knots[knot] = (s.knots[knot]+s.knots[knot-1])/2
+			values[knot] = (values[knot]+values[knot-1])/2
+			push!(todelete, knot-1)
+		end
 	end
-  for i in todelete
-    deleteat!(s.knots, i)
-    deleteat!(values, i)
-  end
-  nKnots = length(s.knots)
+	reverse!(todelete) #reverse the list of knots to delete so that removing one does not affect subsequent removals
+	
+	for i in todelete
+		deleteat!(s.knots, i)
+		deleteat!(values, i)
+	end
+	nKnots = length(s.knots)
 
 	a = values
 	h = forwardDifference(s.knots)
 	df = forwardDifference(values) ./ h
-  # Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
+	# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
 	append!(c, 3*forwardDifference(df))
 	append!(c, [0])
