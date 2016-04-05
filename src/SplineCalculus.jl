@@ -17,11 +17,11 @@ function derivative2{T}(s::Spline{T})
 	sDeriv = deepcopy(s)
 	for i in 1:nSplines
 		sDeriv.a[i] = sDeriv.c[i]*2
-		sDeriv.b[i] = sDeriv.c[i]*3
+		sDeriv.b[i] = sDeriv.d[i]*6
 		sDeriv.c[i] = zero(T)
 		sDeriv.d[i] = zero(T)
 	end
-	return sderiv
+	return sDeriv
 end
 
 """Compute the maximum absolute value of the second derivative of s"""
