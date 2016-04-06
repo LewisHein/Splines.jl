@@ -2,7 +2,23 @@
 A file to hold the helper functions used for working with cubic polynomials
 =#
 
+"""A helper function; Returns true if any of the arguments is NaN"""
+function any_nan{T}(x::T...)
+	for n in x
+		if isnan(n)
+			return true
+		end
+	end
+
+	#if the loop finished, then they are all not NAN so return false
+	return false
+end
+
 function maxcubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
+	if any_nan(x0, x1, a, b, c, d)
+		throw(ArgumentError("Maximum of a cubic with NaN parameters is not defined"))
+	end
+  
   if x0 == x1
     return (x0, @evalpoly(x0, a, b, c, d))
   end
@@ -134,6 +150,9 @@ function maxabscubic{T}(x::T, a::T, b::T, c::T, d::T) #search on [0, x]
 end
 
 function mincubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
+	if any_nan(x0, x1, a, b, c, d)
+		throw(ArgumentError("Minimum of a cubic with NaN parameters is not defined"))
+	end
   if x0 == x1
     return (x0, @evalpoly(x0, a, b, c, d))
   end
@@ -177,6 +196,9 @@ function mincubic{T}(x0::T, x1::T, a::T, b::T, c::T, d::T) #a+bx+cx^2+dx^3
 	if val1 == theMin
 		minPos = x0
 	elseif val2 == theMin
+	if !isdefined(:root1)
+		println("val1: $val1 val2: $val2 val3: $val3 val4: $val4 theMin: $theMin")
+	end
 		minPos = root1
 	elseif val3 == theMin
 		minPos = root2
