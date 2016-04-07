@@ -62,7 +62,12 @@ function integral{T}(s::Spline{T}, a::T, b::T)
   return integral_val
 end
 
+function integral_squared{T}(s::Spline{T}, a::T, b::T)
+	return integral(s^2, a, b)
+end
+
 export derivative
 export derivative2
 export maxabs2deriv
 export integral
+export integral_squared

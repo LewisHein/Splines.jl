@@ -29,7 +29,7 @@ function apply_binary_op{T}(f::Spline{T}, g::Spline{T}, op::Function)
 	return Spline(newknots, newvalues)
 end
 
-#Arithmetic for splines is defined just as for functions, since they are really approximation that can live in a finite computer to functions that cannot. Therefore, addition and scalar multiplication are defined just as you would expect
+#Arithmetic for splines is defined just as for functions, since they are really approximations that can live in a finite computer to functions that cannot. Therefore, addition and scalar multiplication are defined just as you would expect
 
 #f(x)+g(x)
 function +{T}(f::Spline{T}, g::Spline{T})
@@ -57,6 +57,7 @@ end
 #f(x)+c
 function +{T}(f::Spline{T}, c::Number)
 	f_new = deepcopy(f)
+	f_new.values += c
 	f_new.a += c
 
 	return f_new
@@ -71,6 +72,7 @@ end
 #c*f(x)
 function *{T}(c::Number, f::Spline{T})
 	f_new = deepcopy(f)
+	f_new.values *= c
 	f_new.a *= c
 	f_new.b *= c
 	f_new.c *= c
@@ -89,6 +91,7 @@ end
 #f(x)/c
 function /{T}(f::Spline{T}, c::Number)
 	f_new = deepcopy(f)
+	f_new.values *= c
 	f_new.a /= c
 	f_new.b /= c
 	f_new.c /= c
