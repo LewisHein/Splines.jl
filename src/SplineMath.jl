@@ -91,7 +91,7 @@ end
 #f(x)/c
 function /{T}(f::Spline{T}, c::Number)
 	f_new = deepcopy(f)
-	f_new.values *= c
+	f_new.values /= c
 	f_new.a /= c
 	f_new.b /= c
 	f_new.c /= c
