@@ -97,15 +97,18 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 		throw(ArgumentError("values cannot contain NaN"))
 	end
 
+	h = forwardDifference(s.knots)
 	todelete = Array{Int, 1}(0)
-	for knot in 2:nKnots
-		if s.knots[knot] == s.knots[knot-1]
-			throw(ArgumentError("s.knots must all be unique"))
-		end
-		if s.knots[knot]-s.knots[knot-1] < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
-			s.knots[knot] = (s.knots[knot]+s.knots[knot-1])/2
-			values[knot] = (values[knot]+values[knot-1])/2
-			push!(todelete, knot-1)
+	if minimum(h) < min_knot_dist_factor*eps(T)
+		for (knot, knotdiff) in enumerate(h)
+			if knotdiff == zero(T)
+				throw(ArgumentError("s.knots must all be unique"))
+			end
+			if knotdiff < min_knot_dist_factor*eps(T) #then replace the two s.knots & values by their averages
+				s.knots[knot+1] = (s.knots[knot+1]+s.knots[knot])/2
+				values[knot+1] = (values[knot+1]+values[knot])/2
+				push!(todelete, knot)
+			end
 		end
 	end
 	reverse!(todelete) #reverse the list of knots to delete so that removing one does not affect subsequent removals
@@ -117,7 +120,9 @@ function recalculate!{T}(s::Spline{T}, values::Array{T, 1})
 	nKnots = length(s.knots)
 
 	a = values
-	h = forwardDifference(s.knots)
+	if length(todelete) > 0
+		h = forwardDifference(s.knots)
+	end
 	df = forwardDifference(values) ./ h
 	# Note: due the way that the gtsv! solver works, when solving A*X = B, this matrix can be X and then be overwritten By B. Therefore, the name of c is logical
 	c = Array{Float64, 1}([0])
@@ -163,12 +168,10 @@ function call{T}(s::Spline{T}, x::T)
 		#error("x out of range")
 	end
 
-	bracket = 0
-	for i in size(s.knots, 1)-1:-1:1
-		if x >= s.knots[i]
-			bracket = i
-			break
-		end
+
+	bracket = searchsortedlast(s.knots, x)
+	if bracket == length(s.knots)
+		bracket -= 1
 	end
 
 	h = x-s.knots[bracket]
@@ -202,16 +205,26 @@ function call{T}(f::Spline{T}, g::Spline{T})
   #This assumption is probably not too terrible, but it would be better to find the true location
   #of the max error and put the knot there
   maxϵ = typemax(T)
+  ϵ = zero(T)
   while maxϵ > tol
+    knots_toInsert = Array{Float64, 1}(0)
+    values_toInsert = Array{Float64, 1}(0)
     maxϵ = typemin(T)
     for i in 2:length(f_warped.knots)
       x = (f_warped.knots[i]+f_warped.knots[i-1])/2
       ϵ = abs(f_warped(x)-f(g(x)))
       if ϵ > tol
-        insert!(f_warped, x, f(g(x)))
+	push!(knots_toInsert, x)
+	push!(values_toInsert, f(g(x)))
       end
+    end
+    insert!(f_warped, knots_toInsert, values_toInsert)
+    
+    for i in 2:length(f_warped.knots)
+      x = (f_warped.knots[i]+f_warped.knots[i-1])/2
+      ϵ = abs(f_warped(x)-f(g(x)))
       if ϵ > maxϵ
-        maxϵ = ϵ
+      	maxϵ = ϵ
       end
     end
   end

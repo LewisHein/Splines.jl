@@ -3,11 +3,13 @@ function derivative{T}(s::Spline{T})
 
 	sDeriv = deepcopy(s)
 	for i in 1:nSplines
+		sDeriv.values[i] = sDeriv.b[i]
 		sDeriv.a[i] = sDeriv.b[i]
 		sDeriv.b[i] = sDeriv.c[i]*2
 		sDeriv.c[i] = sDeriv.d[i]*3
 		sDeriv.d[i] = 0
 	end
+	sDeriv.values[nSplines+1] = @evalpoly(s.knots[nSplines+1]-s.knots[nSplines], sDeriv.a[end], sDeriv.b[end], sDeriv.c[end], sDeriv.d[end]) #TODO: not tested
 
 	return sDeriv
 end
@@ -21,6 +23,7 @@ function derivative2{T}(s::Spline{T})
 		sDeriv.c[i] = zero(T)
 		sDeriv.d[i] = zero(T)
 	end
+	sDeriv.values[nSplines+1] = 0
 	return sDeriv
 end
 
