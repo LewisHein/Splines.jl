@@ -597,6 +597,10 @@ function adaptive_discretize{T}(s::Spline{T}, tol::Number=-.01)
 	return Dict(:x => mesh, :y => y)
 end
 
+"""Scale a spline so that its maximum absolute value is __normalize_to__"""
+function normalize_max!{T}(s::Spline{T}, normalize_to::T=one(T))
+	s /= maxabs(s)
+end
 
 export call
 export insert!
@@ -616,3 +620,4 @@ export uniform_discretize
 export adaptive_discretize
 export indomain
 export domain
+export normalize_max!
