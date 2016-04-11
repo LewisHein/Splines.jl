@@ -157,7 +157,7 @@ function indomain{T}(s::Spline{T}, x::T)
 end
 
 function domain{T}(s::Spline{T})
-	return (s.knots[1], s.knots[end])
+	return (xmin(s), xmax(s))
 end
 
 Spline{T<:Number}(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1}) = Spline{T}(knots, values)
@@ -480,6 +480,12 @@ function uniform_discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absol
 	return discretize(s, mesh)
 end
 
+"""Turn a spline object _s_ into a discrete list of values, seperated on the domain of s by _step_"""
+function uniform_discretize{T}(s::Spline{T}, step::T)
+	mesh = xmin(s):step:xmax(s)
+	return discretize(s, mesh)
+end
+
 """Turn a spline object into a discrete list of values at the mesh points given by _mesh_"""
 function discretize{T}(s::Spline{T}, mesh::AbstractArray{T})
 	discretized = Array{T, 1}(length(mesh))
@@ -599,7 +605,31 @@ end
 
 """Scale a spline so that its maximum absolute value is __normalize_to__"""
 function normalize_max!{T}(s::Spline{T}, normalize_to::T=one(T))
-	s /= maxabs(s)
+	s2 = s/maxabs(s)
+	s.knots = s2.knots
+	s.values = s2.values
+	s.a = s2.a
+	s.b = s2.b
+	s.c = s2.c
+	s.d = s2.d
+	return nothing
+end
+
+"""Return the smallest value of x for which s(x) is defined"""
+function xmin{T}(s::Spline{T})
+	return s.knots[1]
+end
+
+"""Return the largest value of x for which s(x) is defined"""
+function xmax{T}(s::Spline{T})
+	return s.knots[end]
+end
+
+"""Shift the domain of a spline by amount _Δx_"""
+function domain_shift!{T}(s::Spline{T}, Δx::T)
+	for i in 1:length(s.knots)
+		s.knots[i] += Δx
+	end
 end
 
 export call
@@ -621,3 +651,6 @@ export adaptive_discretize
 export indomain
 export domain
 export normalize_max!
+export xmin
+export xmax
+export domain_shift!
