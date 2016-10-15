@@ -106,7 +106,7 @@ end
 
 ###   Now we define function composition for splines and functions, introducing the ∘ operator that does this   ###
 function compose{T}(f::Function, g::Spline{T})
-	newknots = discretize_mesh(g)
+	newknots = adaptive_discretize_mesh(g)
 	newvalues = similar(newknots)
 
 	for (i, knot) in enumerate(newknots)

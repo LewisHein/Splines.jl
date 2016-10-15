@@ -1,4 +1,22 @@
 import Base: extrema
+using Optim
+
+have_calculus = true
+try
+	Pkg.installed("Calculus")
+catch
+	have_calculus = false
+end
+
+if have_calculus
+	import Calculus.derivative
+end
+
+create_tol = eps(Float64) # The max error tolerated when using a spline to approximate something else
+
+function set_create_tol(newtol::Real)
+	global create_tol = newtol
+end
 
 min_knot_dist_factor = 10000 #knots must be separated by at leas 10000*eps(T) to be considered unique.
 
@@ -162,7 +180,51 @@ end
 
 Spline{T<:Number}(knots::AbstractArray{T, 1}, values::AbstractArray{T, 1}) = Spline{T}(knots, values)
 
-function call{T}(s::Spline{T}, x::T)
+#A helper function to find the max error of s(t)-f(t) for a spline s and a callable object f. If f is not continuous and differentiable, this
+#function WILL NOT WORK.
+function find_maxerr{T}(s::Spline{T}, f, x_lower::Real=domain(s)[1], x_upper::Real=domain(s)[2])
+	min = optimize(t->1/((f(t)-s(t))^2+1), x_lower, x_upper)
+
+	return min.minimum
+end
+
+
+# Tries to construct a spline for anything that has a method of call() defined for it. If f is not smooth and continuous, this will not yield good results
+function Spline(f, xlower::Real, xupper::Real, tol=create_tol)
+	#Start with a really simple set of knots
+	knots = [xlower, xlower+xupper/2, xupper]
+	values = Float64[f(i) for i in knots]
+	s = Spline(knots, values)
+	
+	maxerr = find_maxerr(s, f, xlower, xupper)
+	err_at_maxerr = abs(f(maxerr)-s(maxerr))
+
+	loopcount = 0
+	while err_at_maxerr > tol
+		newknot = maxerr
+		newvalue = f(newknot)
+		insert!(s, newknot, newvalue)
+		
+		maxerr = find_maxerr(s, f, xlower, xupper)
+		err_at_maxerr = abs(f(maxerr)-s(maxerr))
+		
+		loopcount += 1
+
+		if loopcount > 10000
+			warn("Creating a spline from a callable object failed after 10000 iterations")
+			break
+		end
+	end
+
+return s
+end
+
+
+function (s::Spline{T}){T}(x::T)
+	if x == domain(s)[2]
+		return s.values[end]
+	end
+
 	if !indomain(s, x)
 		throw(DomainError())
 		#error("x out of range")
@@ -180,9 +242,10 @@ function call{T}(s::Spline{T}, x::T)
 end
 
 """calling a spline _f_ with another spline _g_ as argument produces a spline approximation to f(g)"""
-function call{T}(f::Spline{T}, g::Spline{T})
-  gmax, gmin = extrema(g)
+function (f::Spline{T}){T}(g::Spline{T})
+  gmin, gmax = extrema(g)
   if !indomain(f, gmax) || !indomain(f, gmin)
+    warn("f(g) is not defined; Range of g is [$gmin, $gmax], but domain of f is only [$(domain(f)[1]), $(domain(f)[2])]. Throwing DomainError")
     throw(DomainError())
   end
 
@@ -198,37 +261,16 @@ function call{T}(f::Spline{T}, g::Spline{T})
   f_warped = Spline(newknots, newvalues)
 
   #We now have some approximation to f(g(t)), but it probably isn't very good.
-  # So we begin going through and trying values halfway between the knots (from g_discrete[:x])
-  # If these values differ too greatly from the true f(g(t)), then we add a knot there.
+  # So we begin going through repeatedly finding the location of the max error
+  # and adding a knot there
   tol = .001 #FIXME: This is purely arbitrary and probably a bad value
-  #FIXME: This loop implicitly assumes that the maximum error occurs halfway between knots.
-  #This assumption is probably not too terrible, but it would be better to find the true location
-  #of the max error and put the knot there
-  maxϵ = typemax(T)
-  ϵ = zero(T)
+  maxϵ_pos = find_maxerr(f_warped, t->f(g(t)))
+  maxϵ = abs(f_warped(maxϵ_pos)-f(g(maxϵ_pos)))
   while maxϵ > tol
-    knots_toInsert = Array{Float64, 1}(0)
-    values_toInsert = Array{Float64, 1}(0)
-    maxϵ = typemin(T)
-    for i in 2:length(f_warped.knots)
-      x = (f_warped.knots[i]+f_warped.knots[i-1])/2
-      ϵ = abs(f_warped(x)-f(g(x)))
-      if ϵ > tol
-	push!(knots_toInsert, x)
-	push!(values_toInsert, f(g(x)))
-      end
-    end
-    insert!(f_warped, knots_toInsert, values_toInsert)
-    
-    for i in 2:length(f_warped.knots)
-      x = (f_warped.knots[i]+f_warped.knots[i-1])/2
-      ϵ = abs(f_warped(x)-f(g(x)))
-      if ϵ > maxϵ
-      	maxϵ = ϵ
-      end
-    end
+    insert!(f_warped, maxϵ_pos, f(g(maxϵ_pos)))
+    maxϵ_pos = find_maxerr(f_warped, t->f(g(t)))
+    maxϵ = abs(f_warped(maxϵ_pos)-f(g(maxϵ_pos)))
   end
-
 
   return f_warped
 end
@@ -474,7 +516,7 @@ end
 
 
 """Turn a spline object into a discrete list of values on an automatically created uniform mesh"""
-function uniform_discretize{T}(s::Spline{T}, tol::Number=-1) #default .001 absolute error tolerated
+function uniform_discretize{T}(s::Spline{T}; tol::Number=-1) #default .001 absolute error tolerated
 	mesh = uniform_discretize_mesh(s, tol)
 
 	return discretize(s, mesh)

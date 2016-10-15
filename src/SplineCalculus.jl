@@ -27,6 +27,16 @@ function derivative2{T}(s::Spline{T})
 	return sDeriv
 end
 
+function derivative{T}(s::Spline{T}, x::T)
+	if !indomain(s, x)
+		throw(DomainError())
+	end
+
+	xpos = findlast(a->x>a, s.knots)
+
+	return @evalpoly(x-s.knots[xpos], s.b[xpos], 2*s.c[xpos], sqrt(3)*s.d[xpos])
+end
+
 """Compute the maximum absolute value of the second derivative of s"""
 function maxabs2deriv(s::Spline)
 	maxA2D = sum = 0
@@ -45,7 +55,7 @@ function integral{T}(s::Spline{T}, a::T, b::T)
     return -1*integral(s, b, a)
   end
   if b == a
-    return 0
+    return zero(T)
   end
 
   startknot = findlast(x->x<=a, s.knots)
